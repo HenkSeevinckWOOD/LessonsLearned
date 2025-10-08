@@ -26,7 +26,74 @@ class _LessonsLearnedGridSideState extends State<LessonsLearnedGridSide> {
 
   /// -------------------------------------------------------------------------------------
   /// Extract Lessons Learned into Excel
-  void _extractLessonsLearnedIntoExcel() {}
+  void _extractLessonsLearnedIntoExcel() async {
+    final lessonsLearnedProvider = Provider.of<LessonsLearnedProvider>(context, listen: false);
+    final projectProvider = Provider.of<Projectprovider>(context, listen: false);
+    final formStatusProvider = Provider.of<FormStatusProvider>(context, listen: false);
+
+    final selectedProject = projectProvider.selectedProject;
+    
+    if (selectedProject == null) {
+      snackbar(context: context, header: 'Please select a project before extracting lessons.');
+      return;
+    }
+
+    try {
+      // Filter lessons for the selected project
+      final allLessons = lessonsLearnedProvider.lessonsLearned;
+      final projectLessons = allLessons.where((lesson) => 
+        lesson['projectID'] == selectedProject['fld_ID']
+      ).toList();
+
+      if (projectLessons.isEmpty) {
+        snackbar(context: context, header: 'No lessons learned found for the selected project.');
+        return;
+      }
+
+      // Show loading state
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext dialogContext) {
+          return const AlertDialog(
+            title: Text('Exporting Lessons Learned'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Preparing Excel file...'),
+                SizedBox(height: 8),
+                Text('Please wait a moment.'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Export the lessons to Excel
+      await ExcelFunctions.populateAndExportLessonsLearnedTemplate(
+        lessonsLearned: projectLessons,
+        llTypes: formStatusProvider.llTypes,
+        selectedProject: selectedProject,
+      );
+
+      // Close loading dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        snackbar(
+          context: context, 
+          header: 'Successfully exported ${projectLessons.length} lessons learned for ${selectedProject['fld_ProjectNo']}.'
+        );
+      }
+    } catch (e) {
+      // Close loading dialog on error
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        snackbar(context: context, header: 'Export failed: ${e.toString()}');
+      }
+    }
+  }
 
   /// -------------------------------------------------------------------------------------
   /// Generate Lessons Learned Template
