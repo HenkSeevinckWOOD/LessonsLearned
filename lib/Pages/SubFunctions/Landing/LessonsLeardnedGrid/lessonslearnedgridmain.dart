@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:collection/collection.dart';
+import 'package:woodproposals/Provider/discipline_provider.dart';
 import 'package:woodproposals/Provider/lessons_learned_provider.dart';
 import 'package:woodproposals/Provider/formstate_management.dart';
 import 'package:woodproposals/Provider/project_provider.dart';
@@ -10,6 +11,7 @@ import 'package:woodproposals/Widgets/widgets.dart';
 class LessonsLearnedGridMain extends StatefulWidget {
   const LessonsLearnedGridMain({super.key});
 
+  @override
   State<LessonsLearnedGridMain> createState() => _LessonsLearnedGridMainState();
 }
 
@@ -32,8 +34,10 @@ class _LessonsLearnedGridMainState extends State<LessonsLearnedGridMain> {
     final applicationInfo = Provider.of<AppInfo>(context, listen: false);
     final projectProvider = Provider.of<Projectprovider>(context, listen: false);
     final lessonsLearnedProvider = Provider.of<LessonsLearnedProvider>(context, listen: false);
+    final disciplineProvider = Provider.of<DisciplineProvider>(context, listen: false);
+    
 
-    _fetchDataFuture = fetchAppStartupInformation(applicationInfo, projectProvider, lessonsLearnedProvider);
+    _fetchDataFuture = fetchAppStartupInformation(applicationInfo, projectProvider, lessonsLearnedProvider,disciplineProvider);
 
     _titleController = TextEditingController();
     _eventController = TextEditingController();
@@ -58,44 +62,59 @@ class _LessonsLearnedGridMainState extends State<LessonsLearnedGridMain> {
 
   /// -------------------------------------------------------------------------------------
   /// Fetch application startup information
-  Future<void> fetchAppStartupInformation(AppInfo applicationInfo, Projectprovider projectProvider, LessonsLearnedProvider lessonsLearnedProvider) async {
+  Future<void> fetchAppStartupInformation(
+    AppInfo applicationInfo, 
+    Projectprovider projectProvider, 
+    LessonsLearnedProvider lessonsLearnedProvider,
+    DisciplineProvider disciplineProvider,
+    ) async {
     // Fetch initial data in parallel without notifying listeners.
     // The FutureBuilder will handle the UI update after both futures complete.
     // Note: You must also add the {bool notify = true} parameter to your projectProvider.fetchProjects() method.
     await Future.wait([
       projectProvider.fetchProjects(notify: false),
       lessonsLearnedProvider.fetchLessonsLearned(notify: false),
+      disciplineProvider.fetchDisciplines(),
     ]);
   }
 
   /// -------------------------------------------------------------------------------------
   /// Search Widget
   Widget _searchBar(BuildContext context) {
-    final projectProvider = Provider.of<Projectprovider>(context, listen: true);
-    final projects = projectProvider.projects.where((project) => project['fld_ProjectNo'] != null).toList();
-    final localAppTheme = ResponsiveTheme(context).theme;
-    final selectedProject = projectProvider.selectedProject;
-    return SizedBox(
-      width: 200,
-      child: SearchableDropdown(
-        labelText: 'SELECT PROJECT:',
-        hint: 'SELECT PROJECT:',
-        dropdownTextColor: localAppTheme['anchorColors']['primaryColor'],
-        searchBoxVisable: false,
-        backgroundColor: localAppTheme['anchorColors']['secondaryColor'],
-        dropDownList: projects,
-        header: 'SELECT PROJECT:',
-        iconColor: localAppTheme['anchorColors']['primaryColor'],
-        idField: 'fld_ID',
-        displayField: 'fld_ProjectNo',
-        initialValue: selectedProject?['fld_ID'],
-        onChanged: (value) {
-          projectProvider.setCurrentProject(value);
-        },
-        isEnabled: selectedProject == null,
-      ),
-    );
-  }
+  final projectProvider = Provider.of<Projectprovider>(context, listen: true);
+  final rawProjects = projectProvider.projects.where((project) => project['fld_ProjectNo'] != null).toList();
+  
+  // Create projects with concatenated display field
+  final projects = rawProjects.map((project) {
+    final Map<String, dynamic> modifiedProject = Map.from(project);
+    modifiedProject['displayName'] = '${project['fld_ProjectNo']} - ${project['fld_ProjectDescription'] ?? project['fld_ProjectName'] ?? ''}';
+    return modifiedProject;
+  }).toList();
+  
+  final localAppTheme = ResponsiveTheme(context).theme;
+  final selectedProject = projectProvider.selectedProject;
+  
+  return SizedBox(
+    width: 600,
+    child: SearchableDropdown(
+      labelText: 'SELECT PROJECT:',
+      hint: 'SELECT PROJECT:',
+      dropdownTextColor: localAppTheme['anchorColors']['primaryColor'],
+      searchBoxVisable: false,
+      backgroundColor: localAppTheme['anchorColors']['secondaryColor'],
+      dropDownList: projects,
+      header: 'SELECT PROJECT:',
+      iconColor: localAppTheme['anchorColors']['primaryColor'],
+      idField: 'fld_ID',
+      displayField: 'displayName', // Use the new concatenated field
+      initialValue: selectedProject?['fld_ID'],
+      onChanged: (value) {
+        projectProvider.setCurrentProject(value);
+      },
+      isEnabled: selectedProject == null,
+    ),
+  );
+}
 
   /// -------------------------------------------------------------------------------------
   /// Unlock Project Selection
@@ -112,10 +131,12 @@ class _LessonsLearnedGridMainState extends State<LessonsLearnedGridMain> {
     final projectprovider = Provider.of<Projectprovider>(context, listen: false);
     final formStatusProvider = Provider.of<FormStatusProvider>(context, listen: false);
     final applicationInfo = Provider.of<AppInfo>(context, listen: false);
+    final disciplineProvider = Provider.of<DisciplineProvider>(context, listen: false);
+    final disciplines = disciplineProvider.disciplines;
     final llTypes = formStatusProvider.llTypes;
     final localAppTheme = ResponsiveTheme(context).theme;
     final formKey = GlobalKey<FormState>();
-    List<Map<String, dynamic>> lessons = [];
+    //List<Map<String, dynamic>> lessons = [];
     Map<String, dynamic> newLessonLearned = {};
 
     _titleController.text = lesson?['lessonTitle']?.toString() ?? '';
@@ -238,6 +259,21 @@ class _LessonsLearnedGridMainState extends State<LessonsLearnedGridMain> {
                       onChanged: null,
                       errorMessage: '',
                     ),
+                    const SizedBox(height: 10),
+                    SearchableDropdown(
+                      labelText: 'Discipline', 
+                      hint: 'Discipline', 
+                      dropdownTextColor: localAppTheme['anchorColors']['primaryColor'], 
+                      searchBoxVisable: false, 
+                      dropDownList: disciplines, 
+                      header: 'Discipline', 
+                      iconColor: localAppTheme['anchorColors']['primaryColor'], 
+                      idField: 'disciplineID',
+                      displayField: 'disciplineDescription', 
+                      onChanged: (value){newLessonLearned['disciplineID'] = value!['disciplineID'];}, 
+                      isEnabled: true,
+                      initialValue: lesson?['disciplineID'],
+                      ),
                   ],
                 ),
               ),
@@ -261,15 +297,25 @@ class _LessonsLearnedGridMainState extends State<LessonsLearnedGridMain> {
 
                 if (isFormValid) {
                   if (lesson == null) {
-                    // This is for adding a new lesson
+                    // This is for adding a new lesson - FIX: Use single lesson method
                     newLessonLearned['lessonTitle'] = _titleController.text;
                     newLessonLearned['event'] = _eventController.text;
                     newLessonLearned['outcome'] = _outcomeController.text;
                     newLessonLearned['whatIsTheLearning'] = _whatIsTheLearningController.text;
                     newLessonLearned['costSavings'] = _costSavingsController.text.isEmpty ? '\$0' : _costSavingsController.text;
-                    lessons.add(newLessonLearned);
+                    newLessonLearned['projectID'] = projectprovider.selectedProject?['fld_ID'];
+                    newLessonLearned['dateRaised'] = DateTime.now().toIso8601String();
+                    newLessonLearned['syncedWithVectorStore'] = false;
+                    
                     try {
-                      await lessonsLearnedProvider.addBulkLessonsLearned(lessons, projectprovider, applicationInfo, dialogContext);
+                      // FIX: Use addLessonsLearned instead of addBulkLessonsLearned
+                      await lessonsLearnedProvider.addLessonsLearned(
+                        newLessonLearned, 
+                        projectprovider, 
+                        applicationInfo, 
+                        notify: true, 
+                        context: dialogContext
+                      );
                       
                       // Check if widget is still mounted before using context
                       if (mounted && dialogContext.mounted) {
@@ -283,7 +329,7 @@ class _LessonsLearnedGridMainState extends State<LessonsLearnedGridMain> {
                       }
                     }
                   } else {
-                  // This is for editing a lesson
+                    // This is for editing a lesson
                     newLessonLearned['lessonID'] = lesson['lessonID'];
                     newLessonLearned['lessonTitle'] = _titleController.text;
                     newLessonLearned['event'] = _eventController.text;
@@ -292,6 +338,7 @@ class _LessonsLearnedGridMainState extends State<LessonsLearnedGridMain> {
                     newLessonLearned['costSavings'] = _costSavingsController.text.isEmpty ? '\$0' : _costSavingsController.text;
                     newLessonLearned['projectID'] = projectprovider.selectedProject?['fld_ID'];
                     newLessonLearned['dateRaised'] = DateTime.now().toIso8601String();
+                    newLessonLearned['syncedWithVectorStore'] = false;
                     try {
                       await lessonsLearnedProvider.editLessonsLearned(newLessonLearned, projectprovider, applicationInfo);
                       
@@ -354,6 +401,7 @@ class _LessonsLearnedGridMainState extends State<LessonsLearnedGridMain> {
     const double outcomeColWidth = 400;
     const double whatIsTheLearningColWidth = 800;
     const double projectColWidth = 150;
+    const double statusColWidth = 100;
 
     Widget buildHeaderCell(String title, double width) {
       return Container(width: width, height: 56, padding: const EdgeInsets.symmetric(horizontal: 16.0), alignment: Alignment.centerLeft, child: header3(header: title, color: localAppTheme['anchorColors']['primaryColor'], context: context));
@@ -375,6 +423,7 @@ class _LessonsLearnedGridMainState extends State<LessonsLearnedGridMain> {
                 decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade300, width: 2))),
                 child: Row(
                   children: [
+                    buildHeaderCell('STATUS', statusColWidth),
                     if (selectedProject != null) buildHeaderCell('BUTTONS', buttonsColWidth),
                     if (selectedProject == null) buildHeaderCell('PROJECT', projectColWidth),
                     buildHeaderCell('LESSON TITLE', lessonTitleColWidth),
@@ -433,6 +482,27 @@ class _LessonsLearnedGridMainState extends State<LessonsLearnedGridMain> {
                                 ]
                               ),
                           ),
+                          Container(
+                            width: statusColWidth, 
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0, 
+                              vertical: 8.0
+                              ), 
+                              alignment: Alignment.centerLeft,
+                              child: Tooltip(
+                                message: lesson['syncedWithVectorStore'] == true 
+                                  ? 'Synchronized with Vector Store' 
+                                  : 'Not Synchronized with Vector Store',
+                                child: Icon(
+                                  lesson['syncedWithVectorStore'] == true 
+                                    ? Icons.check_circle 
+                                    : Icons.sync, 
+                                  color: lesson['syncedWithVectorStore'] == true 
+                                    ? Colors.green 
+                                    : Colors.orange,
+                                  ),
+                              ),
+                              ),
                           if (selectedProject == null) Container(width: projectColWidth, padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0), alignment: Alignment.centerLeft, child: Text(project?['fld_ProjectNo']?.toString() ?? 'N/A')),
                           Container(width: lessonTitleColWidth, padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0), alignment: Alignment.centerLeft, child: Text(lesson['lessonTitle'] ?? '')),
                           Container(width: dateRaisedColWidth, padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0), alignment: Alignment.centerLeft, child: Text(lesson['dateRaised'].toString().split('T')[0])),

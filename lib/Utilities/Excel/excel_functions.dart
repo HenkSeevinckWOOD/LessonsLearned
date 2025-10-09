@@ -2,7 +2,7 @@ import 'package:excel/excel.dart';
 import 'dart:html' as html;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show ByteData, rootBundle;
+//import 'package:flutter/services.dart' show ByteData, rootBundle;
 
 class ExcelFunctions {
   
@@ -40,6 +40,7 @@ class ExcelFunctions {
       instructionsSheet.appendRow([TextCellValue('Outcome'), TextCellValue('The result or impact of the event.')]);
       instructionsSheet.appendRow([TextCellValue('What is the Learning'), TextCellValue('The key takeaway or recommendation to be applied in the future.')]);
       instructionsSheet.appendRow([TextCellValue('Cost Savings'), TextCellValue('The estimated cost savings. Enter as a number (e.g., 15000) or "0" if not applicable.')]);
+      instructionsSheet.appendRow([TextCellValue('AtracID'), TextCellValue('The unique identifier for the lesson learned on Atrack, only used for importing Atrac data.')]);
 
       // Note: The excel package does not support setting column widths directly.
       // Column widths will use default sizing in the generated Excel file.
@@ -54,7 +55,8 @@ class ExcelFunctions {
         'Type',
         'Outcome',
         'What is the Learning',
-        'Cost Savings'
+        'Cost Savings',
+        'AtracID',
       ];
       lessonsSheet.appendRow(headers.map((h) => TextCellValue(h)).toList());
 
@@ -124,6 +126,7 @@ class ExcelFunctions {
       final typeString = getCellValue(2)?.toLowerCase();
       final outcome = getCellValue(3);
       final learning = getCellValue(4);
+      final atracID = getCellValue(6);
 
       // Basic validation: ensure required fields are not empty
       if (title == null || title.isEmpty || event == null || event.isEmpty || typeString == null || typeString.isEmpty) {
@@ -143,6 +146,7 @@ class ExcelFunctions {
         'outcome': outcome ?? '',
         'whatIsTheLearning': learning ?? '',
         'costSavings': getCellValue(5) ?? '0',
+        'atracID': atracID,
       });
     }
     return lessons;

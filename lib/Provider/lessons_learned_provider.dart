@@ -75,11 +75,13 @@ class LessonsLearnedProvider with ChangeNotifier {
         _lessonsLearned.add(createdLessonsLearned);
         _editableLessonsLearned.add(createdLessonsLearned);
         await _uploadLessonsLearnedToVectorStore(createdLessonsLearned, projectProvider, applicationInfo, 'new');
-        // if (notify) {
-        //   notifyListeners();
-        // }
+        
+        // FIX: Uncomment and fix the notifyListeners call
+        if (notify) {
+          notifyListeners();
+        }
       } else {
-        print(response.body);
+        //print(response.body);
         throw Exception('Failed to create the lesson learned');
       }
     } catch (e) {
@@ -152,54 +154,61 @@ class LessonsLearnedProvider with ChangeNotifier {
   
 //--------------------------------------------------------------------------------------
 // Edit Lessons Learned
-  Future<void> editLessonsLearned(Map<String, dynamic> updatedLessonsLearned, Projectprovider projectProvider, AppInfo applicationInfo, {bool notify = true}) async {
+  Future<void> editLessonsLearned(
+  Map<String, dynamic> updatedLessonsLearned, 
+  Projectprovider projectProvider, 
+  AppInfo applicationInfo, 
+  {bool notify = true, bool uploadToVectorStore = true}  // Add this parameter
+) async {
 
-    final int lessonID = updatedLessonsLearned['lessonID'];
-    final url = Uri.parse('https://dailydiary.woodplc.com/DesignAssuranceUserLoginAPI/lessonslearned/Lessons/UpdateLesson?eid=${LocalStorageService.getUserID()!}&userKey=${LocalStorageService.getUserKey()!}');
-    //final url = Uri.parse('https://localhost:7037/lessonslearned/Lessons/UpdateLesson?eid=${LocalStorageService.getUserID()!}&userKey=${LocalStorageService.getUserKey()!}');
+  final int lessonID = updatedLessonsLearned['lessonID'];
+  final url = Uri.parse('https://dailydiary.woodplc.com/DesignAssuranceUserLoginAPI/lessonslearned/Lessons/UpdateLesson?eid=${LocalStorageService.getUserID()!}&userKey=${LocalStorageService.getUserKey()!}');
 
-    // Create a copy to avoid modifying the original map passed to the function.
-    final Map<String, dynamic> payload = Map.from(updatedLessonsLearned);
+  // Create a copy to avoid modifying the original map passed to the function.
+  final Map<String, dynamic> payload = Map.from(updatedLessonsLearned);
 
-    // 1. Add the missing 'lesson' field. We can use the title for this.
-    payload['lesson'] = payload['lessonTitle'];
+  // 1. Add the missing 'lesson' field. We can use the title for this.
+  payload['lesson'] = payload['lessonTitle'];
 
-    // 2. Correctly format the 'dateRaised' field to "YYYY-MM-DD".
-    if (payload['dateRaised'] is String) {
-      payload['dateRaised'] = (payload['dateRaised'] as String).split('T')[0];
-    }
+  // 2. Correctly format the 'dateRaised' field to "YYYY-MM-DD".
+  if (payload['dateRaised'] is String) {
+    payload['dateRaised'] = (payload['dateRaised'] as String).split('T')[0];
+  }
 
-    try {
-      final response = await http.put(
-        url,
-        body: json.encode(payload),
-        headers: <String, String>{'Content-Type': 'application/json; charset=UTF-8'}
-      );
+  try {
+    final response = await http.put(
+      url,
+      body: json.encode(payload),
+      headers: <String, String>{'Content-Type': 'application/json; charset=UTF-8'}
+    );
 
-      // A 204 "No Content" response is a success for an update operation.
-      if (response.statusCode == 204) {
-        // The API call was successful. Update the local state with the data we sent.
-        final index = _lessonsLearned.indexWhere((lesson) => lesson['lessonID'] == lessonID);
-        if (index != -1) {
-          _lessonsLearned[index] = updatedLessonsLearned; // Use the original updated map for UI consistency
-        }
+    // A 204 "No Content" response is a success for an update operation.
+    if (response.statusCode == 204) {
+      // The API call was successful. Update the local state with the data we sent.
+      final index = _lessonsLearned.indexWhere((lesson) => lesson['lessonID'] == lessonID);
+      if (index != -1) {
+        _lessonsLearned[index] = updatedLessonsLearned; // Use the original updated map for UI consistency
+      }
 
-        final editableIndex = _editableLessonsLearned.indexWhere((lesson) => lesson['lessonID'] == lessonID);
-        if (editableIndex != -1) {
-          _editableLessonsLearned[editableIndex] = updatedLessonsLearned;
-        }
+      final editableIndex = _editableLessonsLearned.indexWhere((lesson) => lesson['lessonID'] == lessonID);
+      if (editableIndex != -1) {
+        _editableLessonsLearned[editableIndex] = updatedLessonsLearned;
+      }
 
+      // FIX: Only upload to vector store if explicitly requested (prevents recursion)
+      if (uploadToVectorStore) {
         await _uploadLessonsLearnedToVectorStore(updatedLessonsLearned, projectProvider, applicationInfo, 'update');
-        if (notify) {
-          notifyListeners();
-        }
-      } else {
-        print(response.body);
-        throw Exception('Failed to update the lesson learned');
       }
-    } catch (e) {
-      rethrow;
+      
+      if (notify) {
+        notifyListeners();
       }
+    } else {
+      throw Exception('Failed to update the lesson learned');
+    }
+  } catch (e) {
+    rethrow;
+    }
     }
 
 //--------------------------------------------------------------------------------------
@@ -219,7 +228,6 @@ class LessonsLearnedProvider with ChangeNotifier {
           notifyListeners();
         }
       } else {
-        print(response.body);
         throw Exception('Failed to delete the lesson learned');
       }
     } catch (e) {
@@ -231,6 +239,7 @@ class LessonsLearnedProvider with ChangeNotifier {
   // Upload Lessons Learned to Vector Store  
   Future<void> _uploadLessonsLearnedToVectorStore(Map<String, dynamic> lessonData, Projectprovider projectProvider, AppInfo applicationInfo, String lessonstatus) async {
     final String projectNo = projectProvider.selectedProject?['fld_ProjectNo'] ?? '';
+    final String projectName = projectProvider.selectedProject?['fld_ProjectDescription'] ?? '';
     final int applicationID = applicationInfo.appInfo['applicationID'] ?? 0;
     final int lessonID = lessonData['lessonID'];
     final String lessonText = _formatLessonForVectorStore(lessonData, projectNo);
@@ -245,28 +254,58 @@ class LessonsLearnedProvider with ChangeNotifier {
         ..fields['applicationID'] = applicationID.toString()
         ..fields['lesson'] = lessonText
         ..fields['lessonID'] = lessonID.toString()
-        ..fields['status'] = status;
-        
+        ..fields['status'] = status
+        ..fields['projectName'] = projectName.toString();
 
       final response = await client.send(request);
 
       if (response.statusCode == 200) {
         // Success! n8n received the webhook.
         debugPrint('Successfully sent document to vector store via n8n.');
+        
+        // Update the syncedWithVectorStore field in the database using the lessonData
+        // (which for new records contains the complete data from the creation API response)
+        Map<String, dynamic> updatedLessonData = Map.from(lessonData);
+        updatedLessonData['syncedWithVectorStore'] = true;
+        
+        // FIX: Prevent recursion by setting uploadToVectorStore to false
+        await editLessonsLearned(updatedLessonData, projectProvider, applicationInfo, notify: false, uploadToVectorStore: false);
+        
+        debugPrint('Successfully updated sync status to true for lessonID: $lessonID');
+        
       } else {
-        // Handle error
         final responseBody = await response.stream.bytesToString();
         debugPrint('Failed to send document to vector store. Status: ${response.statusCode}, Body: $responseBody');
-        // Optionally, you could throw an exception here to be caught by the caller
-        // throw Exception('Failed to send document to vector store.');
+        
+        // Update sync status to false for failed uploads
+        Map<String, dynamic> updatedLessonData = Map.from(lessonData);
+        updatedLessonData['syncedWithVectorStore'] = false;
+        
+        // FIX: Prevent recursion by setting uploadToVectorStore to false
+        await editLessonsLearned(updatedLessonData, projectProvider, applicationInfo, notify: false, uploadToVectorStore: false);
+        
+        debugPrint('Updated sync status to false for lessonID: $lessonID due to vector store failure');
       }
     } catch (e) {
       debugPrint('Error sending document to vector store: $e');
-      // rethrow; // Or handle it gracefully
+      
+      // Update sync status to false for failed uploads
+      try {
+        Map<String, dynamic> updatedLessonData = Map.from(lessonData);
+        updatedLessonData['syncedWithVectorStore'] = false;
+        
+        // FIX: Prevent recursion by setting uploadToVectorStore to false
+        await editLessonsLearned(updatedLessonData, projectProvider, applicationInfo, notify: false, uploadToVectorStore: false);
+        
+        debugPrint('Updated sync status to false for lessonID: $lessonID due to exception');
+      } catch (updateError) {
+        debugPrint('Failed to update sync status after vector store error: $updateError');
+      }
+      
+      // Don't rethrow for vector store errors - they shouldn't block the main operation
     } finally {
       client.close();
     }
-
   }
 
   //--------------------------------------------------------------------------------------
