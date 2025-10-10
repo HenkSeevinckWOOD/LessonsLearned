@@ -8,6 +8,7 @@ import 'package:woodproposals/Provider/formstate_management.dart';
 import 'package:woodproposals/Provider/project_provider.dart';
 import 'package:woodproposals/Utilities/globalvariables.dart';
 import 'package:woodproposals/Widgets/widgets.dart';
+import 'package:flutter/services.dart';
 
 class ChatWindowMain extends StatefulWidget {
   const ChatWindowMain({super.key});
@@ -65,11 +66,7 @@ class _ChatWindowMainState extends State<ChatWindowMain> {
     final aiProvider = Provider.of<AITextboxReformat>(context, listen: false);
 
     // Get AI response
-    final response = await aiProvider.getChatResponse(
-      prompt: prompt,
-      chatSessionID: _chatSessionID,
-      context: context,
-    );
+    final response = await aiProvider.getChatResponse(prompt: prompt, chatSessionID: _chatSessionID, context: context);
 
     // Add AI response to the list
     if (response != null) {
@@ -87,11 +84,7 @@ class _ChatWindowMainState extends State<ChatWindowMain> {
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+        _scrollController.animateTo(_scrollController.position.maxScrollExtent, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
       }
     });
   }
@@ -102,41 +95,32 @@ class _ChatWindowMainState extends State<ChatWindowMain> {
     final lessonsLearnedProvider = Provider.of<LessonsLearnedProvider>(context, listen: false);
     final formStatusProvider = Provider.of<FormStatusProvider>(context, listen: false);
     final projectProvider = Provider.of<Projectprovider>(context, listen: false);
-    
+
     // Find the lesson by ID
-    final lesson = lessonsLearnedProvider.lessonsLearned.firstWhere(
-      (l) => l['lessonID'] == lessonId,
-      orElse: () => <String, dynamic>{},
-    );
-    
+    final lesson = lessonsLearnedProvider.lessonsLearned.firstWhere((l) => l['lessonID'] == lessonId, orElse: () => <String, dynamic>{});
+
     if (lesson.isEmpty) {
       snackbar(context: context, header: 'Lesson not found with ID: $lessonId');
       return;
     }
-    
+
     // Enhance lesson data with additional information
     final enhancedLesson = Map<String, dynamic>.from(lesson);
-    
+
     // Add type description if available
     final llTypes = formStatusProvider.llTypes;
-    final type = llTypes.firstWhere(
-      (t) => t['typeID'] == lesson['type'],
-      orElse: () => <String, dynamic>{},
-    );
+    final type = llTypes.firstWhere((t) => t['typeID'] == lesson['type'], orElse: () => <String, dynamic>{});
     if (type.isNotEmpty) {
       enhancedLesson['typeDescription'] = type['type'];
     }
-    
+
     // Add project information if available
     final projects = projectProvider.projects;
-    final project = projects.firstWhere(
-      (p) => p['fld_ID'] == lesson['projectID'],
-      orElse: () => <String, dynamic>{},
-    );
+    final project = projects.firstWhere((p) => p['fld_ID'] == lesson['projectID'], orElse: () => <String, dynamic>{});
     if (project.isNotEmpty) {
       enhancedLesson['projectNumber'] = project['fld_ProjectNo'];
     }
-    
+
     _addEditLessonsLearnedContextWindow(enhancedLesson);
   }
 
@@ -144,9 +128,9 @@ class _ChatWindowMainState extends State<ChatWindowMain> {
   /// View Lessons Learned Context Window
   void _addEditLessonsLearnedContextWindow([Map<String, dynamic>? lesson]) {
     if (lesson == null) return;
-    
+
     final localAppTheme = ResponsiveTheme(context).theme;
-    
+
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -159,10 +143,7 @@ class _ChatWindowMainState extends State<ChatWindowMain> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (lesson['projectNumber'] != null) ...[
-                    _buildLessonDetailRow('Project:', lesson['projectNumber'].toString(), localAppTheme),
-                    const SizedBox(height: 16),
-                  ],
+                  if (lesson['projectNumber'] != null) ...[_buildLessonDetailRow('Project:', lesson['projectNumber'].toString(), localAppTheme), const SizedBox(height: 16)],
                   _buildLessonDetailRow('Lesson ID:', lesson['lessonID']?.toString() ?? 'N/A', localAppTheme),
                   const SizedBox(height: 16),
                   _buildLessonDetailRow('Lesson Title:', lesson['lessonTitle']?.toString() ?? 'N/A', localAppTheme),
@@ -200,26 +181,7 @@ class _ChatWindowMainState extends State<ChatWindowMain> {
   Widget _buildLessonDetailRow(String label, String value, Map<String, dynamic> theme) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          flex: 2,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: theme['anchorColors']['primaryColor'],
-              fontSize: 14,
-            ),
-          ),
-        ),
-        Expanded(
-          flex: 3,
-          child: Text(
-            value,
-            style: const TextStyle(fontSize: 14),
-          ),
-        ),
-      ],
+      children: [Expanded(flex: 2, child: Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: theme['anchorColors']['primaryColor'], fontSize: 14))), Expanded(flex: 3, child: Text(value, style: const TextStyle(fontSize: 14)))],
     );
   }
 
@@ -229,27 +191,13 @@ class _ChatWindowMainState extends State<ChatWindowMain> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: theme['anchorColors']['primaryColor'],
-            fontSize: 14,
-          ),
-        ),
+        Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: theme['anchorColors']['primaryColor'], fontSize: 14)),
         const SizedBox(height: 8),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.grey[50],
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            value,
-            style: const TextStyle(fontSize: 14),
-          ),
+          decoration: BoxDecoration(color: Colors.grey[50], border: Border.all(color: Colors.grey[300]!), borderRadius: BorderRadius.circular(8)),
+          child: Text(value, style: const TextStyle(fontSize: 14)),
         ),
       ],
     );
@@ -259,35 +207,47 @@ class _ChatWindowMainState extends State<ChatWindowMain> {
   /// Build widget
   @override
   Widget build(BuildContext context) {
+    // Get Provider Variables Part 1
     final aiProvider = context.watch<AITextboxReformat>();
     final localAppTheme = ResponsiveTheme(context).theme;
-
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: header1(header: 'LESSONS LEARNED AI ASSISTANT', context: context, color: localAppTheme['anchorColors']['secondaryColor']),
-        backgroundColor: localAppTheme['anchorColors']['primaryColor'],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16.0),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final message = _messages[index];
-                final isUser = message['sender'] == 'user';
-                final lessons = message['lessons'] as List<int>?;
-                return _buildChatBubble(isUser, message['text']!, localAppTheme, lessons: lessons);
-              },
+    return FutureBuilder<void>(
+      future: _fetchDataFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        } else if (snapshot.hasError) {
+          return Center(child: body(header: 'Error: ${snapshot.error}', color: localAppTheme['anchorColors']['primaryColor'], context: context));
+        } else {
+          // Get Provider Variables Part 2
+          return Scaffold(
+            backgroundColor: Colors.grey[100],
+            appBar: AppBar(
+              automaticallyImplyLeading: false,
+              title: header1(header: 'LESSONS LEARNED AI ASSISTANT', context: context, color: localAppTheme['anchorColors']['secondaryColor']),
+              backgroundColor: localAppTheme['anchorColors']['primaryColor'],
             ),
-          ),
-          if (aiProvider.isLoading) const LinearProgressIndicator(),
-          _buildMessageComposer(localAppTheme),
-        ],
-      ),
+            body: Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16.0),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final message = _messages[index];
+                      final isUser = message['sender'] == 'user';
+                      final lessons = message['lessons'] as List<int>?;
+                      return _buildChatBubble(isUser, message['text']!, localAppTheme, lessons: lessons);
+                    },
+                  ),
+                ),
+                if (aiProvider.isLoading) const LinearProgressIndicator(),
+                _buildMessageComposer(localAppTheme),
+              ],
+            ),
+          );
+        }
+      },
     );
   }
 
@@ -324,21 +284,22 @@ class _ChatWindowMainState extends State<ChatWindowMain> {
               Wrap(
                 spacing: 8.0,
                 runSpacing: 4.0,
-                children: lessons.map((id) {
-                  return TextButton.icon(
-                    icon: Icon(Icons.link, size: 16, color: theme['anchorColors']['primaryColor']),
-                    label: Text('Lesson $id', style: TextStyle(color: theme['anchorColors']['primaryColor'])),
-                    style: TextButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: () {
-                      _showLessonDetails(id);
-                    },
-                  );
-                }).toList(),
+                children:
+                    lessons.map((id) {
+                      return TextButton.icon(
+                        icon: Icon(Icons.link, size: 16, color: theme['anchorColors']['primaryColor']),
+                        label: Text('Lesson $id', style: TextStyle(color: theme['anchorColors']['primaryColor'])),
+                        style: TextButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: () {
+                          _showLessonDetails(id);
+                        },
+                      );
+                    }).toList(),
               ),
             ],
           ],
@@ -348,27 +309,46 @@ class _ChatWindowMainState extends State<ChatWindowMain> {
   }
 
   /// -------------------------------------------------------------------------------------
-  /// Build message composer
+  /// Build message composer with advanced key handling
   Widget _buildMessageComposer(Map<String, dynamic> theme) {
     return Container(
       padding: const EdgeInsets.all(8.0),
       decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.5), spreadRadius: 2, blurRadius: 5)]),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
-            child: TextField(
-              controller: _textController,
-              decoration: const InputDecoration(
-                hintText: 'Ask about lessons learned...',
-                border: InputBorder.none,
+            child: Focus(
+              onKeyEvent: (FocusNode node, KeyEvent event) {
+                // Handle key events
+                if (event is KeyDownEvent) {
+                  final isEnterPressed = event.logicalKey == LogicalKeyboardKey.enter;
+
+                  // Check if Shift is currently being held down
+                  final isShiftHeld = HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.shiftLeft) || HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.shiftRight);
+
+                  if (isEnterPressed && !isShiftHeld) {
+                    // Enter without Shift: Send message
+                    _sendMessage();
+                    return KeyEventResult.handled;
+                  }
+                  // Shift+Enter: Allow default behavior (new line)
+                }
+                return KeyEventResult.ignored;
+              },
+              child: TextField(
+                controller: _textController,
+                maxLines: 5, // Maximum 5 lines to prevent excessive height
+                minLines: 1, // Start with single line
+                keyboardType: TextInputType.multiline,
+                textInputAction: TextInputAction.newline,
+                decoration: const InputDecoration(hintText: 'Ask about lessons learned...', border: InputBorder.none, contentPadding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0)),
+                onSubmitted: null, // Disable default submit behavior
               ),
-              onSubmitted: (_) => _sendMessage(),
             ),
           ),
-          IconButton(
-            icon: Icon(Icons.send, color: theme['anchorColors']['primaryColor']),
-            onPressed: _sendMessage,
-          ),
+          const SizedBox(width: 8),
+          IconButton(icon: Icon(Icons.send, color: theme['anchorColors']['primaryColor']), onPressed: _sendMessage, tooltip: 'Send message (Enter)'),
         ],
       ),
     );

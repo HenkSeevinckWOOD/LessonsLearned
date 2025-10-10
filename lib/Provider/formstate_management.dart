@@ -12,13 +12,13 @@ class FormStatusProvider with ChangeNotifier {
   bool adminMode = false;
   Widget pageMainWidget = ChatWindowMain();
   Widget pageSideWidget = ChatWindowSide();
-  String pageHeader = 'LANDING PAGE';
+  String pageHeader = 'LESSONS LEARNED AI ASSISTANT';
   int? selectedDeliverableGroup;
   String? chatSessionID;
   bool chatVisible = false;
   String? signUpFormStatus;
   List<Map<String, dynamic>> displayData = [
-    {'pageTitle': 'landingPage', 'pageHeader':'LANDING PAGE','mainWidget': ChatWindowMain(),'sideWidget': ChatWindowSide(),'chatVisible': false},
+    {'pageTitle': 'landingPage', 'pageHeader':'LESSONS LEARNED AI ASSISTANT','mainWidget': ChatWindowMain(),'sideWidget': ChatWindowSide(),'chatVisible': false},
     {'pageTitle': 'lessonslearnedgrid', 'pageHeader':'LESSONS LEARNED GRID','mainWidget': LessonsLearnedGridMain(),'sideWidget': LessonsLearnedGridSide(),'chatVisible': true},
   ];
 

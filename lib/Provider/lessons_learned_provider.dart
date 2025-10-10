@@ -236,96 +236,129 @@ class LessonsLearnedProvider with ChangeNotifier {
     }
 
 //--------------------------------------------------------------------------------------
-  // Upload Lessons Learned to Vector Store  
-  Future<void> _uploadLessonsLearnedToVectorStore(Map<String, dynamic> lessonData, Projectprovider projectProvider, AppInfo applicationInfo, String lessonstatus) async {
-    final String projectNo = projectProvider.selectedProject?['fld_ProjectNo'] ?? '';
-    final String projectName = projectProvider.selectedProject?['fld_ProjectDescription'] ?? '';
-    final int applicationID = applicationInfo.appInfo['applicationID'] ?? 0;
-    final int lessonID = lessonData['lessonID'];
-    final String lessonText = _formatLessonForVectorStore(lessonData, projectNo);
-    final String status = lessonstatus;
-    final client = http.Client();
+// Upload Lessons Learned to Vector Store  
+Future<void> _uploadLessonsLearnedToVectorStore(Map<String, dynamic> lessonData, Projectprovider projectProvider, AppInfo applicationInfo, String lessonstatus) async {
+  final String projectNo = projectProvider.selectedProject?['fld_ProjectNo'] ?? '';
+  final String projectName = projectProvider.selectedProject?['fld_ProjectDescription'] ?? '';
+  final int applicationID = applicationInfo.appInfo['applicationID'] ?? 0;
+  final int lessonID = lessonData['lessonID'];
+  final String lessonText = _formatLessonForVectorStore(lessonData, projectNo);
+  final String status = lessonstatus;
 
-    final url = Uri.parse('https://aiserver.global.amec.com/webhook/8156096b-2f55-4ac7-909e-b2b1c74fc366'); //Production
+  final url = Uri.parse('https://aiserver.global.amec.com/webhook/8156096b-2f55-4ac7-909e-b2b1c74fc366'); //Production
+  
+  try {
+    // Log the lesson text being sent for debugging
+    debugPrint('Sending lesson to vector store:');
+    debugPrint('LessonID: $lessonID');
+    debugPrint('Status: $status');
+    debugPrint('Lesson Text Length: ${lessonText.length}');
+    debugPrint('Lesson Text Preview: ${lessonText.substring(0, lessonText.length > 200 ? 200 : lessonText.length)}...');
     
-    try {
-      final request = http.MultipartRequest('POST', url)
-        ..fields['projectNo'] = projectNo.toString()
-        ..fields['applicationID'] = applicationID.toString()
-        ..fields['lesson'] = lessonText
-        ..fields['lessonID'] = lessonID.toString()
-        ..fields['status'] = status
-        ..fields['projectName'] = projectName.toString();
+    // FIX: Use regular JSON POST instead of MultipartRequest
+    final Map<String, dynamic> requestBody = {
+      'projectNo': projectNo,
+      'applicationID': applicationID,
+      'lesson': lessonText,
+      'lessonID': lessonID,
+      'status': status,
+      'projectName': projectName,
+    };
 
-      final response = await client.send(request);
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',  // Explicit JSON content type
+        'Accept': 'application/json',
+      },
+      body: json.encode(requestBody),
+    );
 
-      if (response.statusCode == 200) {
-        // Success! n8n received the webhook.
-        debugPrint('Successfully sent document to vector store via n8n.');
-        
-        // Update the syncedWithVectorStore field in the database using the lessonData
-        // (which for new records contains the complete data from the creation API response)
-        Map<String, dynamic> updatedLessonData = Map.from(lessonData);
-        updatedLessonData['syncedWithVectorStore'] = true;
-        
-        // FIX: Prevent recursion by setting uploadToVectorStore to false
-        await editLessonsLearned(updatedLessonData, projectProvider, applicationInfo, notify: false, uploadToVectorStore: false);
-        
-        debugPrint('Successfully updated sync status to true for lessonID: $lessonID');
-        
-      } else {
-        final responseBody = await response.stream.bytesToString();
-        debugPrint('Failed to send document to vector store. Status: ${response.statusCode}, Body: $responseBody');
-        
-        // Update sync status to false for failed uploads
-        Map<String, dynamic> updatedLessonData = Map.from(lessonData);
-        updatedLessonData['syncedWithVectorStore'] = false;
-        
-        // FIX: Prevent recursion by setting uploadToVectorStore to false
-        await editLessonsLearned(updatedLessonData, projectProvider, applicationInfo, notify: false, uploadToVectorStore: false);
-        
-        debugPrint('Updated sync status to false for lessonID: $lessonID due to vector store failure');
-      }
-    } catch (e) {
-      debugPrint('Error sending document to vector store: $e');
+    debugPrint('Vector store response: ${response.statusCode}');
+    debugPrint('Vector store response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      // Success! n8n received the webhook.
+      debugPrint('Vector store webhook accepted for lessonID: $lessonID');
       
-      // Update sync status to false for failed uploads
-      try {
-        Map<String, dynamic> updatedLessonData = Map.from(lessonData);
-        updatedLessonData['syncedWithVectorStore'] = false;
-        
-        // FIX: Prevent recursion by setting uploadToVectorStore to false
-        await editLessonsLearned(updatedLessonData, projectProvider, applicationInfo, notify: false, uploadToVectorStore: false);
-        
-        debugPrint('Updated sync status to false for lessonID: $lessonID due to exception');
-      } catch (updateError) {
-        debugPrint('Failed to update sync status after vector store error: $updateError');
-      }
+      // Note: We mark as synced when webhook is accepted, not when processing completes
+      // This is because n8n doesn't provide real-time feedback on processing success
+      Map<String, dynamic> updatedLessonData = Map.from(lessonData);
+      updatedLessonData['syncedWithVectorStore'] = true;
       
-      // Don't rethrow for vector store errors - they shouldn't block the main operation
-    } finally {
-      client.close();
+      // FIX: Prevent recursion by setting uploadToVectorStore to false
+      await editLessonsLearned(updatedLessonData, projectProvider, applicationInfo, notify: false, uploadToVectorStore: false);
+      
+      debugPrint('Successfully updated sync status to true for lessonID: $lessonID');
+      
+    } else {
+      debugPrint('Vector store webhook rejected. Status: ${response.statusCode}, Body: ${response.body}');
+      
+      // Update sync status to false for rejected uploads
+      Map<String, dynamic> updatedLessonData = Map.from(lessonData);
+      updatedLessonData['syncedWithVectorStore'] = false;
+      
+      // FIX: Prevent recursion by setting uploadToVectorStore to false
+      await editLessonsLearned(updatedLessonData, projectProvider, applicationInfo, notify: false, uploadToVectorStore: false);
+      
+      debugPrint('Updated sync status to false for lessonID: $lessonID due to webhook rejection');
     }
+  } catch (e) {
+    debugPrint('Error sending document to vector store: $e');
+    
+    // Update sync status to false for failed uploads
+    try {
+      Map<String, dynamic> updatedLessonData = Map.from(lessonData);
+      updatedLessonData['syncedWithVectorStore'] = false;
+      
+      // FIX: Prevent recursion by setting uploadToVectorStore to false
+      await editLessonsLearned(updatedLessonData, projectProvider, applicationInfo, notify: false, uploadToVectorStore: false);
+      
+      debugPrint('Updated sync status to false for lessonID: $lessonID due to exception');
+    } catch (updateError) {
+      debugPrint('Failed to update sync status after vector store error: $updateError');
+    }
+    
+    // Don't rethrow for vector store errors - they shouldn't block the main operation
   }
+}
 
   //--------------------------------------------------------------------------------------
   // Format Lesson for Vector Store
   String _formatLessonForVectorStore(Map<String, dynamic> lesson, String projectNo) {
-    final title = lesson['lessonTitle'];
-    final event = lesson['event'];
-    final outcome = lesson['outcome'];
-    final learning = lesson['whatIsTheLearning'];
-    final costSavings = lesson['costSavings'];
+    final title = lesson['lessonTitle']?.toString().trim() ?? '';
+    final event = _cleanText(lesson['event']?.toString() ?? '');
+    final outcome = _cleanText(lesson['outcome']?.toString() ?? '');
+    final learning = _cleanText(lesson['whatIsTheLearning']?.toString() ?? '');
+    final costSavings = lesson['costSavings']?.toString().trim() ?? '';
     final type = lesson['type']; // 1 for positive, 2 for negative
 
-    String costSavingsStatement = (costSavings != null && costSavings != "\$0" && costSavings.isNotEmpty)
-        ? " and resulted in a cost saving of $costSavings"
+    String costSavingsStatement = (costSavings.isNotEmpty && costSavings != "\$0")
+        ? " This resulted in cost savings of $costSavings."
         : "";
 
     if (type == 1) { // Best Practice
-      return "A best practice was identified on $projectNo, titled '$title'. The situation was that '$event', which led to a positive outcome of '$outcome'$costSavingsStatement. The key takeaway and recommendation is to '$learning'.";
+      return "PROJECT: $projectNo | TITLE: $title | TYPE: Best Practice | "
+             "EVENT: $event | "
+             "OUTCOME: $outcome$costSavingsStatement | "
+             "LEARNING: $learning";
     } else { // Lesson Learned from a challenge
-      return "A lesson was learned from a challenge on $projectNo, titled '$title'. The event was that '$event', which resulted in the outcome: '$outcome'. The key learning to prevent this in the future is to '$learning'.";
+      return "PROJECT: $projectNo | TITLE: $title | TYPE: Challenge Lesson | "
+             "EVENT: $event | "
+             "OUTCOME: $outcome | "
+             "LEARNING: $learning";
     }
+  }
+
+  //--------------------------------------------------------------------------------------
+  // Helper method to clean text for vector store
+  String _cleanText(String text) {
+    return text
+      .trim()
+      .replaceAll(RegExp(r'\s+'), ' ')  // Replace multiple whitespace with single space
+      .replaceAll(RegExp(r'\n+'), '. ') // Replace newlines with periods and space
+      .replaceAll(RegExp(r'\.+'), '.') // Replace multiple periods with single period
+      .replaceAll(RegExp(r'\s*\.\s*'), '. ') // Normalize period spacing
+      .trim();
   }
 }
